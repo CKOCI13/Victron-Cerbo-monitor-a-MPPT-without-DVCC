@@ -1,0 +1,28 @@
+# Created by "Cerbo Setup.bat": your Cerbo's IP address
+cerbo-ip.txt
+
+# Created by the monitor while it runs
+state.json
+ui.json
+ui-sim.json
+*.tmp
+
+# Personal screenshots dropped into the project folder (pictures used by the docs live in docs/images)
+/*.png
+/*.jpg
+/*.jpeg
+
+# Python
+__pycache__/
+*.pyc
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Made by make-usb-installer.sh / Cerbo Setup option U
+venus-data.tar.gz
+venus-data-*.tar.gz

@@ -1,0 +1,11 @@
+# The driver runs on Linux (the Cerbo GX), so its files must keep Unix line endings (LF),
+# even when someone downloads the repository on Windows. Shell scripts with Windows line
+# endings fail to run on the Cerbo.
+* text=auto eol=lf
+
+# The Windows helper is the exception: batch files need Windows line endings (CRLF).
+*.bat text eol=crlf
+
+*.png binary
+*.jpg binary
+*.pdf binary

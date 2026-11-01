@@ -1,0 +1,3 @@
+#!/bin/sh
+exec 2>&1
+exec python3 -u /data/dbus-mppt-monitor/dbus-mppt-monitor.py

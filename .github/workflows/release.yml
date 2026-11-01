@@ -1,0 +1,52 @@
+# Publishes a release on GitHub's computers, so nothing has to be uploaded by hand:
+# Actions tab -> "release" -> "Run workflow". It runs the tests, builds the USB installer file
+# (make-usb-installer.sh), and publishes release v<VERSION> with that file attached and the
+# version's CHANGELOG.md section as the description. VERSION comes from dbus-mppt-monitor.py.
+name: release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run the tests
+        run: python -m unittest discover -s tests
+      - name: Read the version
+        id: ver
+        run: |
+          v=$(grep -m1 -oE "VERSION *= *['\"][0-9]+\.[0-9]+\.[0-9]+" dbus-mppt-monitor/dbus-mppt-monitor.py | grep -oE "[0-9]+\.[0-9]+\.[0-9]+")
+          test -n "$v" || { echo "Could not find VERSION in dbus-mppt-monitor.py"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Stop if this version is already released
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v${{ steps.ver.outputs.version }}" >/dev/null 2>&1; then
+            echo "Release v${{ steps.ver.outputs.version }} already exists. Bump VERSION for a new one."
+            exit 1
+          fi
+      - name: Build the USB installer file
+        run: sh make-usb-installer.sh
+      - name: Take this version's notes from CHANGELOG.md
+        run: |
+          awk -v v="${{ steps.ver.outputs.version }}" '
+            /^## / { if (found) exit; if (index($0, "## " v " ") == 1 || $0 == "## " v) { found = 1; next } }
+            found' CHANGELOG.md > notes.md
+          test -s notes.md || echo "See CHANGELOG.md." > notes.md
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.ver.outputs.version }}" venus-data-*.tar.gz \
+            --target "${{ github.sha }}" \
+            --title "v${{ steps.ver.outputs.version }}" \
+            --notes-file notes.md
