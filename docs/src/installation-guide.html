@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Victron MPPT monitor on your Cerbo GX, without DVCC - Installation and User Guide</title>
+<link rel="stylesheet" href="print.css">
+</head>
+<body>
+
+<!-- ======================================================================= cover -->
+<div class="kicker">Installation and user guide · monitor v1.0</div>
+<h1>Monitor a Victron MPPT on your Cerbo GX,<br>without DVCC controlling it</h1>
+<div class="rule"></div>
+<p>Plug your MPPT solar charger into the Cerbo with a VE.Direct cable and install this monitor. You'll then see
+the MPPT's readings on the Cerbo screen, in the VRM app, and on a web page for your tablet. The MPPT keeps charging
+from <b>its own settings</b>: the Cerbo's DVCC can't change them.</p>
+
+<img src="../images/web-page-top.png" style="width:60%; border:1px solid #e2e7ee; border-radius:6pt">
+<p class="caption">The monitor's web page on a tablet (shown here with the built-in pretend MPPT).</p>
+
+<div class="cols">
+  <div class="panel green"><h3>You'll be able to see</h3><ul>
+    <li>Panel voltage and power, and the battery-side voltage, current and power</li>
+    <li>Charge state (Bulk, Absorption, Float…) and any error, in plain words</li>
+    <li>Yield today, yesterday and in total, and the peak power of the day</li>
+    <li>Charts of the last 24 hours on your tablet</li></ul></div>
+  <div class="panel blue"><h3>Good to know</h3><ul>
+    <li>It takes about 30 minutes</li>
+    <li>It <b>only watches</b>: it opens the cable read-only and never sends the MPPT anything</li>
+    <li>You don't need to type any commands. The <b>Cerbo Setup</b> helper does it for you</li>
+    <li>Not yet tried on a real MPPT and Cerbo: step 6 shows how to check it on yours</li></ul></div>
+</div>
+
+<div class="strip s7">
+  <div><b>STEP 1</b>Get what you need</div><div><b>STEP 2</b>Set up the MPPT</div><div><b>STEP 3</b>Plug in the cable</div>
+  <div><b>STEP 4</b>Set up the Cerbo</div><div><b>STEP 5</b>Install the monitor</div><div><b>STEP 6</b>Check it works</div>
+  <div><b>STEP 7</b>Use it</div>
+</div>
+
+<!-- ======================================================================= why -->
+<h2 class="page">Why this is needed</h2>
+<p>When you plug a Victron MPPT into a Cerbo GX, the Cerbo's own driver registers it as a <b>solar charger</b>. If
+<b>DVCC</b> (Distributed Voltage and Current Control) is on, the Cerbo then takes over the MPPT's charging. It sends
+the MPPT a charge voltage and current, and the MPPT shows <b>"External control"</b>. With a managed battery on CAN,
+like a Lithionics, the Cerbo switches DVCC on by itself and may lock it. Victron has no setting that leaves one MPPT
+out of DVCC.</p>
+
+<div class="panel blue"><h3>How the monitor keeps DVCC away</h3><ul>
+  <li><b>It stops Victron's driver on that one port.</b> It asks Venus OS (the Cerbo's software) to stop its
+    VE.Direct driver on the MPPT's port only, using Victron's own command for this. It checks every 10 seconds that
+    the driver stays off, and shows the result on a <b>Control</b> tile. Your other VE.Direct ports are untouched.</li>
+  <li><b>It shows the MPPT as a "DC source", not a solar charger.</b> In Victron's own code, DVCC only controls solar
+    chargers, inverter/chargers, alternators and DC generators. It never controls a DC source.</li>
+  <li><b>It opens the cable read-only.</b> The operating system itself refuses any attempt to send the MPPT data.</li>
+</ul></div>
+
+<div class="panel amber"><h3>The one gap: the first seconds after each Cerbo restart</h3>
+<p style="margin:2pt 0">Victron's driver starts slightly before the monitor when the Cerbo boots. In that short window
+DVCC could send the MPPT a limit. The monitor then stops the driver, and the MPPT goes back to its own settings.
+Step 6 checks this on your system. The optional one-way cable, near the end of this guide, closes the gap completely.</p></div>
+
+<h3>What changes for you</h3>
+<table>
+  <tr><th style="width:42%">Before</th><th>After installing the monitor</th></tr>
+  <tr><td>The Cerbo (DVCC) decides the MPPT's charge voltage and current</td><td>The MPPT charges from its own settings,
+    which you set in VictronConnect (step 2), together with the battery's BMS</td></tr>
+  <tr><td>Shown as a solar charger on the Cerbo and in VRM's solar widgets</td><td>Shown as <b>"Solar MPPT"</b>: cards in
+    the switch pane, a DC source on the Overview, VRM's Switches panel, and its own web page</td></tr>
+  <tr><td>Settings could be changed through the Cerbo or VRM</td><td>Change settings with <b>VictronConnect over
+    Bluetooth</b>, next to the MPPT. The Cerbo can't change the MPPT any more, on purpose</td></tr>
+</table>
+
+<!-- ======================================================================= 1 -->
+<h2 class="page"><span class="num">1</span>Get what you need</h2>
+<table>
+  <tr><th style="width:28%">Item</th><th>Details</th></tr>
+  <tr><td><b>MPPT solar charger</b></td><td>A Victron BlueSolar or SmartSolar MPPT with a VE.Direct port</td></tr>
+  <tr><td><b>Cerbo GX</b></td><td>Running <b>Venus OS v3.80 or newer</b> (Settings › General › Firmware). Older
+    versions don't show the switch-pane cards</td></tr>
+  <tr><td><b>VE.Direct cable</b></td><td>Victron's straight (part no. ASS030530xxx) or right-angle (ASS030531xxx)
+    cable, long enough to reach. <b>10 m (33 ft) at most</b>, and it can't be extended. A VE.Direct-to-USB cable into
+    a Cerbo USB port works too</td></tr>
+  <tr><td><b>VictronConnect app</b></td><td>On your phone or tablet, to set up the MPPT over Bluetooth (step 2)</td></tr>
+  <tr><td><b>A Windows PC</b></td><td>On the same network as the Cerbo, for the <b>Cerbo Setup</b> helper. No PC? Use the
+    USB-stick install in step 5B</td></tr>
+  <tr><td><b>The monitor</b></td><td>From GitHub: <span class="mono">github.com/CKOCI13/Victron-Cerbo-monitor-a-MPPT-without-DVCC</span>.
+    Click the green <b>Code</b> button, then <b>Download ZIP</b>, and unzip it on the PC</td></tr>
+</table>
+<p>The MPPT has only one VE.Direct port, so you can't also plug in an MPPT Control display. The tablet takes its place.</p>
+
+<!-- ======================================================================= 2 -->
+<h2><span class="num">2</span>Set up the MPPT itself (do this first)</h2>
+<div class="panel red"><h3>Important</h3>
+<p style="margin:2pt 0">Once DVCC is out of the picture, <b>the MPPT's own settings decide how it charges</b>, together
+with your battery's BMS. Victron's Cerbo manual advises against running a managed battery without DVCC for exactly
+this reason. So set the MPPT up carefully before you install the monitor.</p></div>
+<div class="step"><div class="id">2.1</div><div>Open <b>VictronConnect</b> on your phone or tablet, stand near the MPPT, and
+  connect to it over Bluetooth. Then open the settings (the gear icon).</div></div>
+<div class="step"><div class="id">2.2</div><div><b>Battery voltage:</b> switch off auto-detect and set it to <b>48 V</b>.</div></div>
+<div class="step"><div class="id">2.3</div><div><b>Charge voltages:</b> set absorption and float to your battery maker's
+  figures (for a Lithionics, ask Lithionics). Set the <b>maximum charge current</b> no higher than the battery's BMS allows.</div></div>
+<div class="step"><div class="id">2.4</div><div><b>Cold weather:</b> lithium batteries must not be charged below freezing.
+  The MPPT can only stop for cold if it gets a temperature from a Victron Smart Battery Sense or battery monitor over
+  Bluetooth. Make sure your battery's BMS protects against charging when it's too cold.</div></div>
+<div class="step"><div class="id">2.5</div><div>Write down the MPPT's <b>serial number</b> (VictronConnect › Product info,
+  or the label on the MPPT; it looks like <span class="mono">HQ2245ABCDE</span>). There's a box for it on the last page.</div></div>
+
+<!-- ======================================================================= 3 -->
+<h2 class="page"><span class="num">3</span>Plug in the cable</h2>
+<figure>
+<svg viewBox="0 0 640 210" width="100%" xmlns="http://www.w3.org/2000/svg">
+  <rect x="10" y="40" width="150" height="110" rx="10" fill="#f6a800"/>
+  <text x="85" y="88" text-anchor="middle" font-size="16" font-weight="700" fill="#fff">MPPT</text>
+  <text x="85" y="108" text-anchor="middle" font-size="11" fill="#fff">solar charger</text>
+  <rect x="140" y="120" width="20" height="16" rx="2" fill="#333"/>
+  <text x="150" y="165" text-anchor="middle" font-size="10" fill="#374151">VE.Direct port</text>
+  <path d="M160 128 C 240 128, 260 180, 330 180 S 430 128, 470 128" fill="none" stroke="#1f2937" stroke-width="5" stroke-linecap="round"/>
+  <text x="315" y="200" text-anchor="middle" font-size="11" fill="#374151">VE.Direct cable (up to 10 m / 33 ft)</text>
+  <rect x="470" y="30" width="160" height="130" rx="10" fill="#2f6db3"/>
+  <text x="550" y="62" text-anchor="middle" font-size="16" font-weight="700" fill="#fff">Cerbo GX</text>
+  <rect x="482" y="120" width="20" height="16" rx="2" fill="#fff"/><rect x="510" y="120" width="20" height="16" rx="2" fill="#fff"/>
+  <rect x="538" y="120" width="20" height="16" rx="2" fill="#fff"/>
+  <text x="520" y="112" text-anchor="middle" font-size="9.5" fill="#fff">VE.Direct 1 · 2 · 3</text>
+  <rect x="575" y="100" width="44" height="36" rx="3" fill="none" stroke="#fff" stroke-dasharray="3 2"/>
+  <text x="597" y="122" text-anchor="middle" font-size="8.5" fill="#fff">RJ45</text>
+  <text x="597" y="150" text-anchor="middle" font-size="8.5" fill="#fff">not these</text>
+  <text x="12" y="25" font-size="11" fill="#374151">Solar panels and battery connect as usual</text>
+</svg>
+</figure>
+<div class="step"><div class="id">3.1</div><div>Plug one end into the MPPT's <b>VE.Direct</b> port and the other into
+  <b>any</b> of the Cerbo's three <b>VE.Direct</b> ports. They're small 4-pin sockets. They are <b>not</b> the RJ45
+  sockets marked VE.Can or VE.Bus.</div></div>
+<div class="step"><div class="id">3.2</div><div>For the next few minutes the Cerbo shows the MPPT as a solar charger, and DVCC may
+  take control of it. That's expected: it's how the monitor finds the MPPT. It ends when you install the monitor in step 5.</div></div>
+
+<!-- ======================================================================= 4 -->
+<h2><span class="num">4</span>Set up the Cerbo</h2>
+<p>On the Cerbo's screen, or in the Remote Console on your tablet:</p>
+<div class="step"><div class="id">4.1</div><div><b>Check the firmware:</b> Settings › General › Firmware. It must be
+  <b>v3.80 or newer</b>. If it isn't, update it there first.</div></div>
+<div class="step"><div class="id">4.2</div><div><b>Allow the PC to connect</b> (only for step 5A):<ul>
+  <li>Settings › General › <b>Access level</b> → <b>Superuser</b>. Set a <b>root password</b> when asked, and write it down</li>
+  <li>Settings › General › <b>SSH on LAN</b> → <b>On</b></li></ul></div></div>
+<div class="step"><div class="id">4.3</div><div><b>Find the Cerbo's IP address:</b> Settings › Connectivity ›
+  Ethernet (or Wi-Fi) › IP address, for example <span class="mono">192.168.1.50</span>. Write it on the last page.</div></div>
+<div class="step"><div class="id">4.4</div><div><b>Modification checks:</b> Settings › General › Modification checks.
+  Modifications must be <b>enabled</b> (that's the default). When they're off, the monitor doesn't start after a restart.</div></div>
+
+<!-- ======================================================================= 5 -->
+<h2 class="page"><span class="num">5</span>Install the monitor</h2>
+<p>Choose <b>A</b> (from a Windows PC, over the network) or <b>B</b> (from a USB stick, no network needed).</p>
+
+<h3>5A · With the Cerbo Setup helper on a Windows PC</h3>
+<div class="step"><div class="id">A1</div><div>In the unzipped folder, double-click <b>Cerbo Setup.bat</b>. Type the
+  Cerbo's IP address when asked and press Enter. It's remembered for next time.</div></div>
+<div class="step"><div class="id">A2</div><div>Type <b>2</b> and press Enter: <b>Show the VE.Direct ports</b>. When asked
+  for a password, type the Cerbo's root password. Nothing appears while you type; that's normal. You should see your MPPT:
+<pre>VE.Direct ports (nothing is ever sent to any device):
+  ttyS6    built-in VE.Direct
+           Victron's driver sees: SmartSolar MPPT 150/35 HQ2245ABCDE (solarcharger)  &lt;- DVCC can control this
+           open by: vedirect-dbus (pid 1234)
+<span class="ok">config.ini has port = auto: found SmartSolar MPPT 150/35 HQ2245ABCDE on ttyS6.</span></pre>
+  Write down the port name (here <span class="mono">ttyS6</span>). This step only looks: it changes nothing.</div></div>
+<div class="step"><div class="id">A3</div><div><b>Only if you have more than one MPPT on VE.Direct:</b> type <b>1</b> to
+  open the settings, and after <span class="mono">serial_number =</span> type the serial number of the MPPT to monitor.
+  Save and close Notepad. The other MPPTs stay with Victron's driver. With one MPPT, skip this.</div></div>
+<div class="step"><div class="id">A4</div><div>Type <b>4</b>: <b>Install or update the monitor</b>. After about 15 seconds
+  you should see <span class="mono">up (pid …)</span> and, in the log lines, <span class="mono">Control status: monitor_only</span>.</div></div>
+
+<h3>5B · From a USB stick or SD card</h3>
+<div class="step"><div class="id">B1</div><div>On the GitHub page, open <b>Releases</b> and download
+  <b>venus-data-mppt-monitor.tar.gz</b>. (No release listed yet? On a Windows PC, run Cerbo Setup.bat, press Enter at
+  the IP-address question, and choose <b>U</b>: it makes the same file.) On a Mac, download with Chrome or Firefox:
+  Safari can unpack it into a .tar file, which the Cerbo ignores.</div></div>
+<div class="step"><div class="id">B2</div><div>Copy the file to the <b>top folder</b> of a USB stick or SD card (FAT32 is the safe
+  choice), not inside another folder. Only one <span class="mono">venus-data</span> file on the stick, and its name must not
+  have <span class="mono">(1)</span> added.</div></div>
+<div class="step"><div class="id">B3</div><div>Put the stick in the Cerbo and restart it (Settings › General › Reboot).</div></div>
+<div class="step"><div class="id">B4</div><div>Wait about <b>2 minutes</b>, then take the stick out. The Cerbo renames the
+  file on the stick to <span class="mono">…tar.gz.installed</span>, so it never installs twice.</div></div>
+
+<p>Either way, the monitor now starts by itself whenever the Cerbo starts, including after firmware updates.</p>
+
+<!-- ======================================================================= 6 -->
+<h2 class="page"><span class="num">6</span>Check that it works</h2>
+<p>Do this once after installing, in daylight if you can. None of these steps can change the MPPT. Tick each box.</p>
+<table class="check">
+  <tr><th style="width:5%">#</th><th style="width:24%">Where</th><th>What you should see</th><th>OK</th></tr>
+  <tr><td>1</td><td>Cerbo switch pane</td><td>A <b>Solar MPPT</b> card with <b>Control: Monitor only (DVCC can't reach it)</b>.
+    A red <b>Victron driver active!</b> that stays for more than a minute is a problem: see Troubleshooting</td><td><span class="box"></span></td></tr>
+  <tr><td>2</td><td>Cerbo › Settings › Devices</td><td>The MPPT is listed <b>once</b>, as <b>Solar MPPT</b>, and <b>not</b>
+    as a solar charger</td><td><span class="box"></span></td></tr>
+  <tr><td>3</td><td>Switch pane or web page</td><td>Battery voltage within about 0.1 V of what the battery reports, and panel
+    power above zero in daylight</td><td><span class="box"></span></td></tr>
+  <tr><td>4</td><td>VictronConnect on the MPPT (Bluetooth)</td><td>Wait 5 minutes after installing. The state is
+    <b>Bulk, Absorption or Float</b>, <b>not "External control"</b></td><td><span class="box"></span></td></tr>
+  <tr><td>5</td><td>Tablet browser</td><td><span class="mono">http://&lt;cerbo-ip&gt;:8090</span> opens and shows a
+    <b>green</b> Control box</td><td><span class="box"></span></td></tr>
+  <tr><td>6</td><td>Restart the Cerbo, wait 5 min</td><td>Repeat checks 1, 2 and 4. This checks the start-up gap:
+    the MPPT must <b>not</b> be in External control</td><td><span class="box"></span></td></tr>
+</table>
+<div class="panel red"><h3>If check 4 or 6 fails</h3>
+<p style="margin:2pt 0">If the MPPT stays in <b>External control</b> for more than a few minutes, uninstall the monitor
+(Cerbo Setup option 8, then restart the Cerbo) and unplug the VE.Direct cable. Then report it on the GitHub page under
+<b>Issues</b>, with the monitor's log (Cerbo Setup option 5).</p></div>
+
+<!-- ======================================================================= 7 -->
+<h2><span class="num">7</span>Use it</h2>
+<h3>On the Cerbo screen (or Remote Console)</h3>
+<p>Open the <b>switch pane</b>. Three cards appear; everything on them is read-only:</p>
+<table>
+  <tr><th style="width:26%">Card</th><th>Shows</th></tr>
+  <tr><td><b>Solar MPPT</b></td><td><b>Control</b> (green: monitor only; red: Victron's driver is active), <b>State</b>
+    (Off, Bulk, Absorption, Float, Fault…), <b>Error</b> (None, or the error number and its meaning), <b>Yield today</b>,
+    <b>Max power today</b>. Hidden at first: Yield yesterday, Yield total, Tracker</td></tr>
+  <tr><td><b>Solar MPPT solar</b></td><td>Panel voltage and power</td></tr>
+  <tr><td><b>Solar MPPT battery</b></td><td>Battery-side voltage, charge current and power</td></tr>
+</table>
+<p>To show a hidden item, rename one or move it to another card, open Settings › Devices › <b>Solar MPPT</b>. The
+MPPT also appears on the <b>Overview</b> as a DC source box, and in <b>VRM</b> (portal and app) under <b>Switches</b>.</p>
+
+<h3 class="page">On your Android tablet</h3>
+<div class="step"><div class="id">7.1</div><div>Open Chrome and go to <span class="mono">http://&lt;cerbo-ip&gt;:8090</span>.
+  The tablet must be on the same network as the Cerbo.</div></div>
+<div class="step"><div class="id">7.2</div><div>Make it an icon: Chrome menu (⋮) › <b>Add to Home screen</b>.</div></div>
+<div class="step"><div class="id">7.3</div><div>The page shows the Control status, energy flow, panel and battery values,
+  charge state and errors, yields, and charts. Tap <b>10 min / 1 h / 6 h / 24 h</b> to change the chart range, and
+  touch a chart to read the values at that moment.</div></div>
+<p>The charts start empty after a restart: the history is kept in memory for 24 hours. For longer history, use VRM.
+To require a password for the page, set <span class="mono">password =</span> in the settings (Cerbo Setup option 1, then 4).</p>
+
+<h3>Changing the MPPT's settings</h3>
+<p>Use <b>VictronConnect over Bluetooth</b>, next to the MPPT, exactly as before. The Cerbo, Remote Console and VRM
+can't change the MPPT while the monitor runs. That's what keeps DVCC out. (A BlueSolar without Bluetooth: unplug the
+Cerbo cable, connect a laptop with a VE.Direct-to-USB cable, make the change, then plug the Cerbo cable back in.)</p>
+
+<h3>Error numbers</h3>
+<p>The Error item shows the MPPT's own error number with its meaning, for example <b>Error 33: PV over-voltage</b>.
+The MPPT solar charger manual, chapter "Error codes", explains what to do for each one.</p>
+
+<!-- ======================================================================= optional -->
+<h2 class="page">Optional: a one-way cable</h2>
+<p>For a guarantee in hardware, so that nothing on the Cerbo can ever send the MPPT anything (even in the
+start-up seconds), use a cable that only carries data <b>from</b> the MPPT <b>to</b> the Cerbo.</p>
+<figure>
+<svg viewBox="0 0 640 170" width="100%" xmlns="http://www.w3.org/2000/svg">
+  <rect x="20" y="30" width="120" height="110" rx="8" fill="#f6a800"/>
+  <text x="80" y="60" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">MPPT</text>
+  <text x="80" y="78" text-anchor="middle" font-size="10" fill="#fff">VE.Direct pins</text>
+  <g font-size="11" fill="#1f2937">
+    <text x="150" y="58">1  Ground</text><text x="150" y="84">2  RX: data INTO the MPPT</text>
+    <text x="150" y="110">3  TX: data OUT of the MPPT</text><text x="150" y="136">4  Power</text>
+  </g>
+  <line x1="320" y1="54" x2="610" y2="54" stroke="#1f2937" stroke-width="3"/>
+  <line x1="320" y1="80" x2="430" y2="80" stroke="#c9403a" stroke-width="3"/>
+  <line x1="470" y1="80" x2="610" y2="80" stroke="#c9403a" stroke-width="3"/>
+  <text x="450" y="70" text-anchor="middle" font-size="18" fill="#c9403a">✂</text>
+  <text x="450" y="98" text-anchor="middle" font-size="10" font-weight="700" fill="#c9403a">cut pin 2 only</text>
+  <line x1="320" y1="106" x2="610" y2="106" stroke="#24834b" stroke-width="3"/>
+  <line x1="320" y1="132" x2="610" y2="132" stroke="#1f2937" stroke-width="3"/>
+  <text x="615" y="158" text-anchor="end" font-size="10" fill="#374151">towards the Cerbo</text>
+</svg>
+</figure>
+<div class="step"><div class="id">1</div><div>Use a short <b>4-pin JST-PH extension lead</b> between the VE.Direct cable and the
+  MPPT, so the Victron cable stays intact.</div></div>
+<div class="step"><div class="id">2</div><div>At the MPPT end, cut and insulate the wire on <b>pin 2 only</b> (pin numbers from
+  Victron's VE.Direct protocol document).</div></div>
+<div class="step"><div class="id">3</div><div>In the settings (Cerbo Setup option 1), set <span class="mono">port =</span> to
+  the port name from step 5A (for example <span class="mono">ttyS6</span>) instead of <span class="mono">auto</span>.
+  Victron's driver may not recognise a one-way MPPT, so <span class="mono">auto</span> might never find it. Then reinstall
+  (option 4).</div></div>
+<div class="step"><div class="id">4</div><div>Check with option <b>3</b> (Watch live readings) that readings still arrive. If
+  they stop, the wrong wire was cut: pin 3 carries the readings. Cutting either data wire can't damage anything.</div></div>
+
+<h2>The temperature probe</h2>
+<p>The Cerbo's temperature inputs are separate from this monitor. Use Victron's <b>ASS000001000</b> temperature sensor
+on one of the Cerbo's four temperature inputs: <b>red wire to the top terminal, black to the bottom</b>. Then switch the
+input on under Settings › Integrations › Tank and Temperature Sensors. It shows in the Cerbo's temperature unit, so in
+<b>°F</b> if the Cerbo is set to Fahrenheit. The MPPT doesn't use this probe: the Cerbo would only pass it on through
+DVCC, and only to solar chargers, which this MPPT no longer is.</p>
+
+<h2>Living alongside the Nomadic D1 monitor</h2>
+<p>Both run on the same Cerbo without touching each other: different connections (CAN for the D1, VE.Direct here),
+folders, services, device instances (70 and 71) and web pages (port 8088 for the D1, 8090 here).</p>
+
+<!-- ======================================================================= troubleshooting -->
+<h2 class="page">Troubleshooting</h2>
+<table>
+  <tr><th style="width:34%">What you see</th><th>What to do</th></tr>
+  <tr><td>No Solar MPPT cards at all</td><td>Check the firmware is v3.80 or newer (step 4.1). Look at the log (Cerbo Setup
+    option 5). After a USB install, check Modification checks (step 4.4)</td></tr>
+  <tr><td>Control: <b>Waiting for the MPPT</b></td><td>The monitor hasn't found the MPPT. Check the cable is in a
+    <b>VE.Direct</b> socket at both ends. Run option 2: if the MPPT isn't listed, restart the Cerbo so Victron's driver can
+    identify it, then wait a minute</td></tr>
+  <tr><td>Log says <span class="mono">2 MPPTs found … set serial_number</span></td><td>Set <span class="mono">serial_number</span>
+    to the one to monitor (step 5A, A3), then reinstall (option 4)</td></tr>
+  <tr><td>Control: <b>Victron driver active!</b> for more than a minute</td><td>Victron's driver keeps coming back. Send the
+    log (option 5) with an issue on GitHub. Meanwhile, uninstall (option 8) and restart the Cerbo</td></tr>
+  <tr><td>State: <b>No communication</b></td><td>No readings for 5 seconds. Check the cable. A cable longer than 10 m, or one
+    that has been extended, won't work reliably</td></tr>
+  <tr><td>Web page doesn't open</td><td>Use <span class="mono">http://</span>, not https, and include <span class="mono">:8090</span>.
+    The tablet must be on the same network as the Cerbo</td></tr>
+  <tr><td>Values look frozen</td><td>The Last reading line under Details on the web page shows how long ago data arrived.
+    Over 5 seconds means no data: check the cable</td></tr>
+</table>
+
+<h2>Removing the monitor</h2>
+<p>Run Cerbo Setup, choose <b>8</b> and type <b>YES</b>. Then <b>restart the Cerbo</b>. Victron's driver takes the port
+back on the next start, and the MPPT is a normal solar charger again, which DVCC can control.</p>
+
+<!-- ======================================================================= notes -->
+<h2>My system</h2>
+<table class="notes">
+  <tr><th style="width:38%">Item</th><th>Write it here</th></tr>
+  <tr><td>Cerbo IP address</td><td></td></tr>
+  <tr><td>MPPT model and serial number</td><td></td></tr>
+  <tr><td>VE.Direct port (from option 2)</td><td></td></tr>
+  <tr><td>Web page</td><td>http://______________________:8090</td></tr>
+  <tr><td>MPPT absorption / float / max current</td><td></td></tr>
+  <tr><td>Installed on (date) / checks 1–6 done</td><td></td></tr>
+</table>
+<p class="caption">This project isn't made by, or affiliated with, Victron Energy. Victron Energy, Cerbo GX, Venus OS,
+VE.Direct, SmartSolar, BlueSolar and VRM are trademarks of Victron Energy B.V. MIT No Attribution licence; no warranty.</p>
+
+</body>
+</html>

@@ -121,6 +121,9 @@ unzipped folder. On Mac or Linux, type `python3` instead of `python`.)
 
 ## Installing it
 
+The **[Installation and User Guide (PDF)](docs/installation-guide.pdf)** covers all of this step by step, with a
+printable checklist. In short:
+
 1. **Set up the MPPT** as described [above](#before-you-start-set-up-the-mppt-itself).
 2. **Plug the VE.Direct cable** into the MPPT and into any of the Cerbo's three VE.Direct ports. These are not
    the RJ45 VE.Can or VE.Bus sockets. For a few minutes the Cerbo's own driver will show it as a solar charger.
@@ -255,7 +258,10 @@ Victron-Cerbo-monitor-a-MPPT-without-DVCC/
 │   ├── install.sh, uninstall.sh  add / remove it as a Cerbo service
 │   ├── service/                  start-up scripts used by Venus OS
 │   └── README.md                 technical reference
-├── docs/images/              ← pictures used here
+├── docs/
+│   ├── installation-guide.pdf    step-by-step guide to print
+│   ├── images/                   pictures used by the docs
+│   └── src/                      source of the PDF, and the script that builds it
 ├── tests/                    ← automated tests (run on any PC)
 ├── .github/workflows/        ← makes GitHub run the tests, and build releases
 ├── CHANGELOG.md

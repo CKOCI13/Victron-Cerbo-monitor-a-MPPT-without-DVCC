@@ -1,0 +1,43 @@
+/* Shared style for the printable guides (installation-guide.html). */
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Inter, "Liberation Sans", sans-serif; font-size: 10.5pt; line-height: 1.5; color: #1f2937; }
+h1 { font-size: 24pt; line-height: 1.15; margin: 4pt 0 10pt; color: #0f172a; }
+h1 + .rule { width: 60pt; height: 4pt; background: #2f6db3; border-radius: 2pt; margin-bottom: 14pt; }
+.kicker { font-size: 8.5pt; font-weight: 700; letter-spacing: .08em; color: #2f6db3; text-transform: uppercase; }
+h2 { font-size: 15pt; margin: 18pt 0 6pt; color: #0f172a; display: flex; align-items: center; gap: 10pt; break-after: avoid; }
+h2 .num { display: inline-flex; align-items: center; justify-content: center; width: 22pt; height: 22pt; border-radius: 50%;
+          background: #2f6db3; color: #fff; font-size: 11pt; }
+h3 { font-size: 11.5pt; margin: 14pt 0 4pt; color: #0f172a; break-after: avoid; }
+p { margin: 4pt 0 8pt; }
+.page { break-before: page; }
+img { max-width: 100%; display: block; margin: 6pt auto; }
+.caption { text-align: center; color: #6b7280; font-size: 8.5pt; margin: 0 0 10pt; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14pt; }
+.panel { border-radius: 6pt; padding: 8pt 12pt; break-inside: avoid; }
+.panel.green { background: #eef7f1; border-left: 4pt solid #24834b; }
+.panel.blue { background: #eef3fa; border-left: 4pt solid #2f6db3; }
+.panel.amber { background: #fdf5e7; border-left: 4pt solid #d98a1e; }
+.panel.red { background: #fdeeed; border-left: 4pt solid #c9403a; }
+.panel h3 { margin-top: 2pt; }
+.panel ul { margin: 2pt 0; padding-left: 14pt; }
+table { border-collapse: collapse; width: 100%; margin: 6pt 0 10pt; font-size: 9.5pt; break-inside: avoid; }
+th { background: #f1f4f8; text-align: left; }
+th, td { border: 1px solid #e2e7ee; padding: 4pt 7pt; vertical-align: top; }
+code, .mono { font-family: "DejaVu Sans Mono", monospace; font-size: 8.8pt; background: #f1f4f8; padding: 0 3pt; border-radius: 3pt; }
+pre { font-family: "DejaVu Sans Mono", monospace; font-size: 8.4pt; line-height: 1.4; background: #0e131a; color: #d8dee9;
+      padding: 9pt 12pt; border-radius: 6pt; white-space: pre-wrap; break-inside: avoid; margin: 6pt 0 10pt; }
+pre .ok { color: #7ee2a8; }
+.step { display: grid; grid-template-columns: 26pt 1fr; gap: 8pt; margin: 7pt 0; break-inside: avoid; }
+.step .id { background: #0f172a; color: #fff; font-weight: 700; font-size: 9pt; border-radius: 4pt; height: 18pt;
+            display: flex; align-items: center; justify-content: center; margin-top: 1pt; }
+.step ul, .step ol { margin: 2pt 0; padding-left: 16pt; }
+.strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6pt; margin-top: 14pt; }
+.strip div { border: 1px solid #d6dce6; border-radius: 6pt; padding: 6pt 8pt; font-size: 8.5pt; }
+.strip b { display: block; color: #2f6db3; font-size: 7.5pt; letter-spacing: .06em; }
+.check td:last-child, .check th:last-child { width: 28pt; }
+.write { border-bottom: 1px solid #9aa4b2; display: inline-block; min-width: 140pt; height: 12pt; }
+.strip.s7 { grid-template-columns: repeat(7, 1fr); }
+.box { width: 11pt; height: 11pt; border: 1.2pt solid #475569; border-radius: 2pt; display: inline-block; }
+figure { margin: 8pt 0; break-inside: avoid; }
+svg text { font-family: Inter, "Liberation Sans", sans-serif; }
+.notes td { height: 22pt; }
