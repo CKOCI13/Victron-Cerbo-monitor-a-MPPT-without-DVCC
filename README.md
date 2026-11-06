@@ -23,6 +23,7 @@ shows its readings, while the MPPT keeps charging from its own settings. The Cer
 - [How this solves it](#how-this-solves-it)
 - [What it shows](#what-it-shows)
 - [What you need](#what-you-need)
+- [Where the MPPT sits in an LTV1](#where-the-mppt-sits-in-an-ltv1)
 - [Before you start: set up the MPPT itself](#before-you-start-set-up-the-mppt-itself)
 - [Try it on your PC in one minute](#try-it-on-your-pc-in-one-minute)
 - [Installing it](#installing-it)
@@ -43,6 +44,10 @@ managed battery on CAN, such as a Lithionics, the Cerbo switches DVCC on by itse
 
 Victron has no setting to leave one MPPT out of DVCC. If you want to *see* the MPPT on the Cerbo but have it
 charge only from its own settings, you need something else. That's what this is.
+
+In a Grand Design LTV1 this matters even more. The MPPT charges the **12 V AGM chassis batteries**, not the
+51 V Lithionics house battery. DVCC assumes every solar charger feeds the battery its BMS manages, so it would
+apply the Lithionics' charge limits to an MPPT that is on a different battery.
 
 ## How this solves it
 
@@ -90,18 +95,37 @@ closes the gap completely.
 The MPPT uses its only VE.Direct port for this cable, so you can't also plug in an MPPT Control display. The
 tablet takes its place.
 
+## Where the MPPT sits in an LTV1
+
+- **What it charges:** the two **12 V AGM chassis batteries**, wired in parallel under the driver's seat. They
+  power the chassis and start the van. The MPPT is wired to the **rear 12 V bus bar**, which is cabled to them.
+- **Where extra solar goes:** once the chassis batteries are full, the Nomadic **D1** takes the surplus from the
+  12 V bus bar and boosts it to charge the **51 V Lithionics** house battery. The MPPT never connects to the
+  Lithionics directly.
+- **Make the D1 and the MPPT settings fit together.** Surplus solar only reaches the D1 once the 12 V bus is above
+  the voltage at which the D1 starts boosting. If that voltage is **higher than the MPPT's float voltage**, the MPPT
+  simply throttles back in Float and no solar reaches the house battery. If it is **well below the MPPT's
+  absorption voltage**, the D1 keeps pulling the bus down and the AGMs may never get a full absorption charge.
+  Check the D1's boost start voltage against the absorption and float voltages you set in step 2 below.
+- **Shared ground.** A VE.Direct cable (the one-way cable too) carries a **ground wire** between the MPPT and the
+  Cerbo. The MPPT's negative is the 12 V side, which returns through the Ford chassis grounds. If the Cerbo is
+  powered from the house-battery side, confirm that the 51 V (48 V nominal) negative and the chassis negative are joined (for example
+  through the D1) before plugging in the cable. If they aren't, ask Victron before connecting.
+
 ## Before you start: set up the MPPT itself
 
-With DVCC out of the picture, **the MPPT's own settings are the only thing deciding how it charges**, together
-with your battery's BMS. Victron's Cerbo manual advises against running a managed battery without DVCC, for
-exactly this reason. So set the MPPT up properly in **VictronConnect** first:
+With DVCC out of the picture, **the MPPT's own settings are the only thing deciding how it charges**. AGM
+batteries have no BMS to protect them, so set the MPPT up properly in **VictronConnect** first:
 
-1. **Battery voltage:** switch off auto-detect and set it to **48 V**.
-2. **Battery preset / charge voltages:** use your battery maker's figures (for a Lithionics, ask Lithionics). Set
-   the absorption and float voltages, and the maximum charge current, no higher than the battery's BMS allows.
-3. **Low-temperature cut-off:** the MPPT can only use this with a temperature from a Smart Battery Sense or a
-   battery monitor over Bluetooth (VE.Smart network). Check that your battery's BMS protects against charging
-   when it's too cold.
+1. **Battery voltage:** switch off auto-detect and set it to **12 V**.
+2. **Battery preset / charge voltages:** use the AGM battery maker's absorption and float voltages (on the battery
+   label or data sheet). If you have no figures, VictronConnect's AGM preset is a reasonable start. Keep the
+   maximum charge current within what the batteries' maker allows.
+3. **Temperature compensation:** leave lead-acid temperature compensation **on** (Victron's default for 12 V is
+   about −16 mV per °C). AGMs need lower charge voltages when warm and higher when cold. By default the MPPT
+   uses its **own internal temperature**, and in an LTV1 it sits at the rear while the batteries are under the
+   driver's seat. A Victron **Smart Battery Sense** on the batteries (over Bluetooth, VE.Smart network) gives it
+   the real battery temperature. The Cerbo's temperature probe can't, because DVCC is what would pass it on.
 
 ## Try it on your PC in one minute
 
@@ -163,7 +187,7 @@ Do this once after installing, in daylight if you can. None of these steps can c
 |---|---|---|
 | 1 | Cerbo switch pane | A **Solar MPPT** card, with **Control: Monitor only (DVCC can't reach it)**. A red **Victron driver active!** that stays for more than a minute means Victron's driver keeps coming back: see the log (`Cerbo Setup.bat` option 5) |
 | 2 | Cerbo › Settings › Devices | The MPPT appears **once**, as **Solar MPPT** (a DC source), and **not** as a solar charger |
-| 3 | Cerbo switch pane / web page | Battery voltage within about 0.1 V of what the Lithionics reports, and panel power above zero in daylight |
+| 3 | Cerbo switch pane / web page | Battery voltage within about 0.1–0.2 V of the 12 V chassis bus (the D1 monitor's 12 V reading, or a meter on the rear bus bar), and panel power above zero in daylight |
 | 4 | VictronConnect, on the MPPT (Bluetooth) | Wait 5 minutes after installing. The state should be **Bulk, Absorption or Float**, not **External control** |
 | 5 | Cerbo › Settings › System setup › Charge control | Whatever DVCC shows, the MPPT isn't among the devices it controls any more (step 2) |
 | 6 | Restart the Cerbo, then repeat steps 1, 2 and 4 | Checks the start-up gap: 5 minutes after the restart, the MPPT must not be in External control |

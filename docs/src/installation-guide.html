@@ -8,7 +8,7 @@
 <body>
 
 <!-- ======================================================================= cover -->
-<div class="kicker">Installation and user guide · monitor v1.0</div>
+<div class="kicker">Installation and user guide · monitor v1.0.1</div>
 <h1>Monitor a Victron MPPT on your Cerbo GX,<br>without DVCC controlling it</h1>
 <div class="rule"></div>
 <p>Plug your MPPT solar charger into the Cerbo with a VE.Direct cable and install this monitor. You'll then see
@@ -44,6 +44,9 @@ from <b>its own settings</b>: the Cerbo's DVCC can't change them.</p>
 the MPPT a charge voltage and current, and the MPPT shows <b>"External control"</b>. With a managed battery on CAN,
 like a Lithionics, the Cerbo switches DVCC on by itself and may lock it. Victron has no setting that leaves one MPPT
 out of DVCC.</p>
+<p>In a Grand Design LTV1 the MPPT charges the <b>12 V AGM chassis batteries</b> from the rear 12 V bus bar; once
+they're full, the Nomadic D1 boosts the surplus to the 51 V Lithionics. DVCC assumes every solar charger feeds the
+battery its BMS manages, so it would apply the Lithionics' limits to an MPPT on a different battery.</p>
 
 <div class="panel blue"><h3>How the monitor keeps DVCC away</h3><ul>
   <li><b>It stops Victron's driver on that one port.</b> It asks Venus OS (the Cerbo's software) to stop its
@@ -63,7 +66,7 @@ Step 6 checks this on your system. The optional one-way cable, near the end of t
 <table>
   <tr><th style="width:42%">Before</th><th>After installing the monitor</th></tr>
   <tr><td>The Cerbo (DVCC) decides the MPPT's charge voltage and current</td><td>The MPPT charges from its own settings,
-    which you set in VictronConnect (step 2), together with the battery's BMS</td></tr>
+    which you set in VictronConnect (step 2)</td></tr>
   <tr><td>Shown as a solar charger on the Cerbo and in VRM's solar widgets</td><td>Shown as <b>"Solar MPPT"</b>: cards in
     the switch pane, a DC source on the Overview, VRM's Switches panel, and its own web page</td></tr>
   <tr><td>Settings could be changed through the Cerbo or VRM</td><td>Change settings with <b>VictronConnect over
@@ -91,19 +94,21 @@ Step 6 checks this on your system. The optional one-way cable, near the end of t
 <!-- ======================================================================= 2 -->
 <h2><span class="num">2</span>Set up the MPPT itself (do this first)</h2>
 <div class="panel red"><h3>Important</h3>
-<p style="margin:2pt 0">Once DVCC is out of the picture, <b>the MPPT's own settings decide how it charges</b>, together
-with your battery's BMS. Victron's Cerbo manual advises against running a managed battery without DVCC for exactly
-this reason. So set the MPPT up carefully before you install the monitor.</p></div>
+<p style="margin:2pt 0">Once DVCC is out of the picture, <b>the MPPT's own settings decide how it charges</b>. AGM
+batteries have no BMS to protect them, so set the MPPT up carefully before you install the monitor.</p></div>
 <div class="step"><div class="id">2.1</div><div>Open <b>VictronConnect</b> on your phone or tablet, stand near the MPPT, and
   connect to it over Bluetooth. Then open the settings (the gear icon).</div></div>
-<div class="step"><div class="id">2.2</div><div><b>Battery voltage:</b> switch off auto-detect and set it to <b>48 V</b>.</div></div>
-<div class="step"><div class="id">2.3</div><div><b>Charge voltages:</b> set absorption and float to your battery maker's
-  figures (for a Lithionics, ask Lithionics). Set the <b>maximum charge current</b> no higher than the battery's BMS allows.</div></div>
-<div class="step"><div class="id">2.4</div><div><b>Cold weather:</b> lithium batteries must not be charged below freezing.
-  The MPPT can only stop for cold if it gets a temperature from a Victron Smart Battery Sense or battery monitor over
-  Bluetooth. Make sure your battery's BMS protects against charging when it's too cold.</div></div>
+<div class="step"><div class="id">2.2</div><div><b>Battery voltage:</b> switch off auto-detect and set it to <b>12 V</b>.</div></div>
+<div class="step"><div class="id">2.3</div><div><b>Charge voltages:</b> use the AGM maker's absorption and float figures
+  (or VictronConnect's <b>AGM</b> preset), and a <b>maximum charge current</b> the batteries' maker allows.</div></div>
+<div class="step"><div class="id">2.4</div><div><b>Temperature compensation:</b> leave it <b>on</b> (about &minus;16 mV/&deg;C
+  at 12 V). The MPPT uses its own internal temperature unless a Victron <b>Smart Battery Sense</b> on the batteries
+  (under the driver's seat) sends it theirs over Bluetooth.</div></div>
 <div class="step"><div class="id">2.5</div><div>Write down the MPPT's <b>serial number</b> (VictronConnect › Product info,
   or the label on the MPPT; it looks like <span class="mono">HQ2245ABCDE</span>). There's a box for it on the last page.</div></div>
+<div class="step"><div class="id">2.6</div><div><b>Match the D1:</b> its boost start voltage (12 V side) should sit
+  <b>at or below the MPPT's float</b>, or no solar reaches the house battery, but <b>not far below absorption</b>, or the
+  AGMs may never fully charge.</div></div>
 
 <!-- ======================================================================= 3 -->
 <h2 class="page"><span class="num">3</span>Plug in the cable</h2>
@@ -127,6 +132,11 @@ this reason. So set the MPPT up carefully before you install the monitor.</p></d
   <text x="12" y="25" font-size="11" fill="#374151">Solar panels and battery connect as usual</text>
 </svg>
 </figure>
+<div class="panel amber"><h3>Before you plug in: shared ground</h3>
+<p style="margin:2pt 0">A VE.Direct cable (the one-way cable too) carries a <b>ground wire</b> between the MPPT and the
+Cerbo. The MPPT's negative is the 12 V side, which returns through the Ford chassis grounds. If the Cerbo is powered
+from the house-battery side, confirm that the 51 V (48 V nominal) negative and the chassis negative are joined (for
+example through the D1). If they aren't, ask Victron before connecting.</p></div>
 <div class="step"><div class="id">3.1</div><div>Plug one end into the MPPT's <b>VE.Direct</b> port and the other into
   <b>any</b> of the Cerbo's three <b>VE.Direct</b> ports. They're small 4-pin sockets. They are <b>not</b> the RJ45
   sockets marked VE.Can or VE.Bus.</div></div>
@@ -190,8 +200,8 @@ this reason. So set the MPPT up carefully before you install the monitor.</p></d
     A red <b>Victron driver active!</b> that stays for more than a minute is a problem: see Troubleshooting</td><td><span class="box"></span></td></tr>
   <tr><td>2</td><td>Cerbo › Settings › Devices</td><td>The MPPT is listed <b>once</b>, as <b>Solar MPPT</b>, and <b>not</b>
     as a solar charger</td><td><span class="box"></span></td></tr>
-  <tr><td>3</td><td>Switch pane or web page</td><td>Battery voltage within about 0.1 V of what the battery reports, and panel
-    power above zero in daylight</td><td><span class="box"></span></td></tr>
+  <tr><td>3</td><td>Switch pane or web page</td><td>Battery voltage within about 0.2 V of the 12 V bus (D1 monitor or a meter),
+    and panel power above zero in daylight</td><td><span class="box"></span></td></tr>
   <tr><td>4</td><td>VictronConnect on the MPPT (Bluetooth)</td><td>Wait 5 minutes after installing. The state is
     <b>Bulk, Absorption or Float</b>, <b>not "External control"</b></td><td><span class="box"></span></td></tr>
   <tr><td>5</td><td>Tablet browser</td><td><span class="mono">http://&lt;cerbo-ip&gt;:8090</span> opens and shows a
@@ -317,8 +327,9 @@ back on the next start, and the MPPT is a normal solar charger again, which DVCC
   <tr><td>VE.Direct port (from option 2)</td><td></td></tr>
   <tr><td>Web page</td><td>http://______________________:8090</td></tr>
   <tr><td>MPPT absorption / float / max current</td><td></td></tr>
+  <tr><td>D1 boost start voltage</td><td></td></tr>
   <tr><td>Installed on (date) / checks 1–6 done</td><td></td></tr>
-</table>
+  </table>
 <p class="caption">This project isn't made by, or affiliated with, Victron Energy. Victron Energy, Cerbo GX, Venus OS,
 VE.Direct, SmartSolar, BlueSolar and VRM are trademarks of Victron Energy B.V. MIT No Attribution licence; no warranty.</p>
 
