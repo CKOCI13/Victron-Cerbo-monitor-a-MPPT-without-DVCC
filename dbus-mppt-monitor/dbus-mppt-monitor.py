@@ -598,16 +598,17 @@ class SimulatedMppt:
     """A pretend MPPT for --simulate: produces real VE.Direct text blocks (with checksums and
     the odd HEX frame) once a second. Nothing touches a serial port.
 
-    A pretend day lasts 20 minutes followed by 4 minutes of night, on a 48 V lithium battery,
-    with bulk, absorption and float, so every state shows up within half an hour. It is for
+    A pretend day lasts 20 minutes followed by 4 minutes of night, on a 12 V AGM chassis
+    battery bank (as in a Grand Design LTV1), with bulk, absorption and float, so every state
+    shows up within half an hour. It is for
     trying out the screens, not for predicting what a real MPPT will do.
     """
 
     name = 'simulated'
     path = 'simulated'
     DAY, NIGHT = 1200.0, 240.0
-    PEAK = 1400.0          # W at noon
-    ABSORPTION_V, FLOAT_V = 56.4, 54.4
+    PEAK = 400.0           # W at noon
+    ABSORPTION_V, FLOAT_V = 14.4, 13.8   # Victron's AGM preset at 25 °C
     ABSORPTION_TIME = 120.0
 
     MORNING = 240.0        # start the pretend day mid-morning, so there's sun straight away
@@ -617,10 +618,10 @@ class SimulatedMppt:
         self._start = now - self.MORNING
         self._next = now
         self._last = now
-        self.v, self.state = 52.2, 3
+        self.v, self.state = 12.9, 3
         self._absorption_since = None
-        self.yield_today, self.yield_total, self.max_today = 0.0, 1234.56, 0
-        self.yield_yesterday, self.max_yesterday = 4.21, 1180
+        self.yield_today, self.yield_total, self.max_today = 0.0, 312.45, 0
+        self.yield_yesterday, self.max_yesterday = 1.18, 385
         self._day = 0
         self._count = 0
 
@@ -640,7 +641,7 @@ class SimulatedMppt:
         self._last = now
         sun = self._sun(now)
         available = self.PEAK * sun
-        load = 180.0                                    # pretend 48 V loads, in W
+        load = 60.0                                     # pretend 12 V chassis loads, in W
         if sun <= 0.0:
             self.state = 0
             power = 0.0
@@ -650,20 +651,20 @@ class SimulatedMppt:
             if self.v >= self.ABSORPTION_V:
                 self.state, self._absorption_since = 4, now
         elif self.state == 4:
-            power = min(available, load + 300.0 * max(0.0, (self.ABSORPTION_V - self.v) * 5 + 0.3))
+            power = min(available, load + 80.0 * max(0.0, (self.ABSORPTION_V - self.v) * 20 + 0.3))
             if now - self._absorption_since >= self.ABSORPTION_TIME:
                 self.state = 5
         else:
-            power = min(available, load + 120.0 * max(0.0, (self.FLOAT_V - self.v) * 5))
+            power = min(available, load + 30.0 * max(0.0, (self.FLOAT_V - self.v) * 20))
         net = power - load
-        self.v = min(57.0, max(50.0, self.v + net * 0.000012 * dt))
+        self.v = min(14.6, max(12.0, self.v + net * 0.000014 * dt))
         if self.state == 4:
             self.v = min(self.v, self.ABSORPTION_V)
         if self.state == 5:
             self.v = min(self.v, self.FLOAT_V)
         self.pv_power = round(power)
         self.current = power / self.v if self.v else 0.0
-        self.pv_v = 0.0 if sun <= 0 else 80.0 + 18.0 * sun
+        self.pv_v = 0.0 if sun <= 0 else 30.0 + 8.0 * sun
         self.yield_today += power * dt / 3600000.0
         self.yield_total += power * dt / 3600000.0
         self.max_today = max(self.max_today, self.pv_power)

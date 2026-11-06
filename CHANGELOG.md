@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.1 (2026-11-06)
+
+Corrected for how the MPPT is really wired in a Grand Design LTV1: it charges the **12 V AGM chassis batteries**
+from the rear 12 V bus bar, and the Nomadic D1 boosts the surplus to the 51 V Lithionics. No change to how the
+monitor reads or publishes the MPPT.
+
+- MPPT setup (README and guide): battery voltage **12 V** (was 48 V), AGM charge voltages from the battery maker
+  or VictronConnect's AGM preset, and lead-acid temperature compensation left on (replaces the lithium
+  cold-charging note).
+- New: where the MPPT sits in an LTV1, matching the D1's boost start voltage to the MPPT's absorption and float,
+  and a shared-ground check before plugging in the VE.Direct cable.
+- Test plan step 3 compares the battery voltage with the 12 V bus (D1 monitor or a meter), not the Lithionics.
+- Pretend MPPT (`--simulate`) now models a 12 V AGM bank and about 400 W of panels; web-page screenshots and the
+  PDF guide rebuilt.
+
 ## 1.0.0 (2026-11-01)
 
 First version.

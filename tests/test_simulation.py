@@ -26,10 +26,10 @@ class SimulationTest(unittest.TestCase):
             sim.step(float(n))
             seen.add(sim.state)
             yields.append(sim.yield_today)
-            self.assertTrue(50.0 <= sim.v <= 57.0)
+            self.assertTrue(12.0 <= sim.v <= 14.6)   # a 12 V AGM bank
         self.assertTrue({0, 3, 4, 5} <= seen, seen)
-        self.assertGreater(max(yields), 0.05)
-        self.assertGreater(sim.yield_yesterday, 0.05)   # the day rolled over
+        self.assertGreater(max(yields), 0.02)
+        self.assertGreater(sim.yield_yesterday, 0.02)   # the day rolled over
 
     def test_simulation_config_does_not_clash(self):
         cfg = driver.load_config('/nonexistent')
