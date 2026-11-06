@@ -42,7 +42,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import vedirect_text as vt
 
-VERSION = '1.0.0'
+VERSION = '1.0.1'
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 VELIB_PATHS = (
     os.path.join(BASE_DIR, 'ext', 'velib_python'),
