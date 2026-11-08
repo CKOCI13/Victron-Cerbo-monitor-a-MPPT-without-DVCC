@@ -42,7 +42,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import vedirect_text as vt
 
-VERSION = '1.0.1'
+VERSION = '1.0.2'
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 VELIB_PATHS = (
     os.path.join(BASE_DIR, 'ext', 'velib_python'),
@@ -50,10 +50,14 @@ VELIB_PATHS = (
 )
 VERSION_FILE = '/opt/victronenergy/version'
 STOP_TTY = '/opt/victronenergy/serial-starter/stop-tty.sh'
+START_TTY = '/opt/victronenergy/serial-starter/start-tty.sh'
 PROC = '/proc'
 DEV = '/dev'
 HISTORY_INTERVAL = 10.0               # seconds between history points
 HISTORY_POINTS = 24 * 3600 // 10      # 24 hours
+LISTEN_GRACE = 30.0                   # port = auto: give Victron's driver this long to identify the MPPT first
+LISTEN_SECONDS = 4.0                  # how long to listen on each port (the MPPT sends once a second)
+LISTEN_RETRY = 300.0                  # seconds between listening rounds while no MPPT has been heard
 GUARD_INTERVAL = 10.0                 # seconds between checks that Victron's driver stays off the port
 BAUD = termios.B19200                 # VE.Direct: 19200 bit/s, 8N1
 
@@ -367,6 +371,20 @@ def stop_victron_driver(name):
         return False
 
 
+def start_victron_driver(name):
+    """Hand a port back to Venus OS's serial-starter (undoes stop_victron_driver)."""
+    if not os.path.exists(START_TTY):
+        log.warning('%s not found: cannot hand %s back to Venus OS', START_TTY, name)
+        return False
+    try:
+        subprocess.run([START_TTY, name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                       timeout=30)
+        return True
+    except (OSError, subprocess.SubprocessError) as e:
+        log.warning('start-tty.sh %s failed: %s', name, e)
+        return False
+
+
 class Guard:
     """Keeps Victron's VE.Direct driver off the MPPT's port, and reports whether it is.
 
@@ -487,15 +505,133 @@ def choose_port(devices, serial_wanted, remembered, exists=os.path.exists):
     return None, 'no MPPT found yet on a VE.Direct port'
 
 
-class PortChooser:
-    """port = auto: finds the MPPT's port from D-Bus and remembers it in state.json."""
+def listen_for_mppt(path, seconds=LISTEN_SECONDS, open_port=None):
+    """Listen (read-only) on one port; the MPPT's decoded readings, or None if none were heard.
 
-    def __init__(self, cfg, state_path, bus_factory):
+    Only blocks with a PV voltage count: solar chargers send VPV, battery monitors and inverters
+    don't. This is how an MPPT behind a one-way cable is found, since Victron's own driver has
+    to talk to a device to identify it and can't.
+    """
+    open_port = open_port or SerialPort
+    try:
+        port = open_port(path)
+    except OSError as e:
+        log.debug('Cannot listen on %s: %s', path, e)
+        return None
+    parser = vt.TextParser()
+    found = None
+    end = time.monotonic() + seconds
+    try:
+        while time.monotonic() < end:
+            for block in parser.feed(port.read(0.3)):
+                values = vt.decode(block)
+                if values.get('pv_voltage') is not None:
+                    found = dict(found or {}, **values)
+            if found and found.get('serial'):
+                break
+    except OSError:
+        pass
+    finally:
+        port.close()
+    return found
+
+
+class Listener:
+    """port = auto, when Victron's driver hasn't identified any MPPT: listen for one ourselves.
+
+    Each VE.Direct port that Victron's driver has NOT identified a device on is tried in turn:
+    serial-starter is asked to pause its probing there, the port is read (never written) for a
+    few seconds, and if no MPPT was heard the port is handed straight back to serial-starter.
+    Ports where Victron's driver already found a device are never touched. Runs in its own thread
+    so the GX screens keep updating.
+    """
+
+    def __init__(self, take_over, serial_wanted='', ports_fn=None, listen=None,
+                 stop=None, start=None, holders=None, sleep=time.sleep):
+        self.take_over = take_over
+        self.serial_wanted = serial_wanted
+        self.ports_fn = ports_fn or serial_ports
+        self.listen = listen or listen_for_mppt
+        self.stop = stop or stop_victron_driver
+        self.start = start or start_victron_driver
+        self.holders = holders or port_holders
+        self.sleep = sleep
+        self.found = None          # (path, serial)
+        self.busy = False
+        self._lock = threading.Lock()
+
+    def scan(self, identified_ttys):
+        """One listening round. Returns (path, serial) or None."""
+        for path in self.ports_fn():
+            name = tty_name(path)
+            if name in identified_ttys:
+                continue
+            paused = False
+            if self.holders(path):
+                if not self.take_over:
+                    continue
+                paused = self.stop(name)
+                for _ in range(10):
+                    self.sleep(0.5)
+                    if not self.holders(path):
+                        break
+                if self.holders(path):
+                    log.info('port = auto: %s stays busy; not listening there', name)
+                    if paused:
+                        self.start(name)
+                    continue
+            values = self.listen(path)
+            serial = (values or {}).get('serial')
+            if values and (not self.serial_wanted or serial == self.serial_wanted):
+                log.info('port = auto: heard MPPT %s on %s (one-way cable or not identified '
+                         'by Victron\'s driver)', serial or '?', name)
+                return path, serial
+            if values:
+                log.info('port = auto: %s has MPPT %s, not serial_number = %s',
+                         name, serial, self.serial_wanted)
+            if paused:
+                self.start(name)
+        return None
+
+    def run_round(self, identified_ttys):
+        try:
+            result = self.scan(identified_ttys)
+        except Exception:
+            log.exception('port = auto: listening round failed')
+            result = None
+        with self._lock:
+            if result:
+                self.found = result
+            self.busy = False
+
+    def begin(self, identified_ttys):
+        """Start a listening round in the background unless one is running."""
+        with self._lock:
+            if self.busy:
+                return False
+            self.busy = True
+        start_thread('listen', self.run_round, set(identified_ttys))
+        return True
+
+
+class PortChooser:
+    """port = auto: finds the MPPT's port and remembers it in state.json.
+
+    First from D-Bus (an MPPT Victron's driver identified), then the port remembered from last
+    time, and if neither: by listening on the unidentified ports (Listener), for one-way cables.
+    """
+
+    def __init__(self, cfg, state_path, bus_factory, listener=None, now=time.monotonic):
         self.cfg = cfg
         self.state_path = state_path
         self.state = load_json(state_path)
         self.bus_factory = bus_factory
         self._last_reason = None
+        self.now = now
+        v = cfg['vedirect']
+        self.listener = listener if listener is not None else Listener(
+            v.getboolean('take_over'), v['serial_number'].strip())
+        self._next_listen = now() + LISTEN_GRACE
 
     def find(self):
         v = self.cfg['vedirect']
@@ -507,6 +643,15 @@ class PortChooser:
             log.debug('D-Bus lookup failed: %s', e)
             devices = []
         path, reason = choose_port(devices, v['serial_number'].strip(), self.state)
+        if not path and self.listener:
+            if self.listener.found:
+                path, serial = self.listener.found
+                reason = 'heard an MPPT on %s by listening' % tty_name(path)
+                self.remember(path, serial)
+            elif self.now() >= self._next_listen and not self.listener.busy:
+                self._next_listen = self.now() + LISTEN_RETRY
+                self.listener.begin(d['tty'] for d in devices)
+                reason += '; listening on the other VE.Direct ports'
         if reason != self._last_reason:
             self._last_reason = reason
             (log.info if path else log.warning)('port = auto: %s', reason)
@@ -946,7 +1091,9 @@ class DbusService:
         s[g % 'control'] = control
         s['/GenericInput/control/Status'] = 1 if control == 1 else 0
         s[g % 'state'] = state_index(v.get('state')) if on else STATE_NO_COMM
-        s['/GenericInput/state/Status'] = 0 if on else 1
+        # Always 0: the GX shows a nonzero Status in its own words ("Fault"), which hid the
+        # "No communication" label. The Control row already says when nothing is coming in.
+        s['/GenericInput/state/Status'] = 0
         err = v.get('error')
         s[g % 'error'] = error_index(err)
         s['/GenericInput/error/Status'] = 1 if err else 0
@@ -1178,6 +1325,10 @@ def run_scan(cfg, bus_factory=None, seconds=3.0, state_path=None):
                 d.get('product') or '?', d.get('serial') or '', d['type']))
         if holders:
             print('           open by: %s' % ', '.join('%s (pid %d)' % (n, p) for p, n in holders))
+            if not d:
+                print('           Victron\'s driver hasn\'t identified anything here. With a one-way '
+                      'cable that is normal:\n           the monitor\'s port = auto listens here '
+                      'itself (about 30 s after it starts).')
             continue
         try:
             port = SerialPort(path)

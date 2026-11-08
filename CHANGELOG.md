@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.2 (2026-11-07)
+
+Fixes `port = auto` with the **one-way cable**, found in the first real test (SmartSolar on a Cerbo GX MK2).
+
+- `port = auto` now also finds an MPPT that Victron's driver can't identify. Victron's driver has to talk to a
+  device to identify it, which a one-way cable stops, so the monitor stayed on "Waiting for the MPPT" for good.
+  Now, 30 s after starting, it listens (read-only) on each VE.Direct port where Victron's driver found nothing,
+  takes the one where it hears an MPPT (matching `serial_number` if set), and remembers it. Ports where Victron's
+  driver found a device are never touched; ports with no MPPT are handed straight back to Venus OS. It tries
+  again every 5 minutes until it hears the MPPT. Nothing is ever sent to any device.
+- With no data, the State row said **Fault**, which looked like an MPPT fault. It now says **No communication**.
+- `--scan` (Cerbo Setup option 2) explains a port that Victron's driver holds but hasn't identified, instead of
+  just listing it as open.
+
 ## 1.0.1 (2026-11-06)
 
 Corrected for how the MPPT is really wired in a Grand Design LTV1: it charges the **12 V AGM chassis batteries**

@@ -275,10 +275,11 @@ start-up seconds), use a cable that only carries data <b>from</b> the MPPT <b>to
   MPPT, so the Victron cable stays intact.</div></div>
 <div class="step"><div class="id">2</div><div>At the MPPT end, cut and insulate the wire on <b>pin 2 only</b> (pin numbers from
   Victron's VE.Direct protocol document).</div></div>
-<div class="step"><div class="id">3</div><div>In the settings (Cerbo Setup option 1), set <span class="mono">port =</span> to
-  the port name from step 5A (for example <span class="mono">ttyS6</span>) instead of <span class="mono">auto</span>.
-  Victron's driver may not recognise a one-way MPPT, so <span class="mono">auto</span> might never find it. Then reinstall
-  (option 4).</div></div>
+<div class="step"><div class="id">3</div><div>Leave <span class="mono">port = auto</span>. Victron's driver can't identify an
+  MPPT behind a one-way cable, so about 30 seconds after starting, the monitor listens on each VE.Direct port where
+  Victron's driver found nothing and takes the one where it hears the MPPT (it never touches a port where Victron's
+  driver found a device, and hands the others straight back). It remembers the port for next time. Setting
+  <span class="mono">port =</span> to a name like <span class="mono">ttyS6</span> still works too.</div></div>
 <div class="step"><div class="id">4</div><div>Check with option <b>3</b> (Watch live readings) that readings still arrive. If
   they stop, the wrong wire was cut: pin 3 carries the readings. Cutting either data wire can't damage anything.</div></div>
 
