@@ -50,9 +50,9 @@ class Cerbo:
         self.probing.add(name)
         return True
 
-    def listen(self, path):
+    def listen(self, path, stats=None):
         return driver.listen_for_mppt(
-            path, seconds=0.2,
+            path, seconds=0.2, stats=stats,
             open_port=lambda p: FakePort(self.traffic.get(os.path.basename(p), b'')))
 
     def listener(self, serial_wanted='', take_over=True):
@@ -112,6 +112,74 @@ class ListenerTest(unittest.TestCase):
         cerbo.stop = lambda name: cerbo.calls.append(('stop', name)) or True   # doesn't free it
         self.assertIsNone(cerbo.listener().scan(set()))
         self.assertEqual(cerbo.calls, [('stop', 'ttyS6'), ('start', 'ttyS6')])
+
+
+class ReportTest(unittest.TestCase):
+    """What the Control row shows while there is no port, from the last listening round."""
+
+    class G:
+        status = 'waiting'
+
+    def control(self, listener):
+        return driver.control_status(self.G(), listener)
+
+    def test_found(self):
+        listener = Cerbo({'ttyS6': MPPT_BLOCK}).listener()
+        listener.scan(set())
+        self.assertEqual(listener.report['ports']['ttyS6']['result'], 'mppt')
+        self.assertEqual(listener.report['result'], 'found')
+
+    def test_silent_means_check_the_cable(self):
+        listener = Cerbo({}).listener()
+        listener.scan({'ttyS5'})
+        self.assertEqual(listener.report['ports']['ttyS5']['result'], 'victron')
+        self.assertEqual(listener.report['ports']['ttyS6']['result'], 'silent')
+        self.assertEqual(self.control(listener), 'silent')
+        self.assertEqual(driver.GUARD_LABELS[driver.GUARD_STATUSES.index('silent')],
+                         'Not heard: check cable')
+
+    def test_noise_is_garbled(self):
+        listener = Cerbo({'ttyS7': b'\x00\xff\x13garbage\r\n'}).listener()
+        listener.scan(set())
+        self.assertEqual(listener.report['ports']['ttyS7']['result'], 'garbled')
+        self.assertGreater(listener.report['ports']['ttyS7']['bytes'], 0)
+        self.assertEqual(self.control(listener), 'garbled')
+
+    def test_battery_monitor_only(self):
+        listener = Cerbo({'ttyS7': BMV_BLOCK}).listener()
+        listener.scan(set())
+        self.assertEqual(self.control(listener), 'not_mppt')
+
+    def test_busy_ports(self):
+        cerbo = Cerbo({'ttyS6': MPPT_BLOCK})
+        cerbo.stop = lambda name: True              # Venus OS never frees them
+        listener = cerbo.listener()
+        listener.scan(set())
+        self.assertEqual(self.control(listener), 'busy')
+
+    def test_while_listening_and_before(self):
+        listener = Cerbo({}).listener()
+        self.assertEqual(self.control(listener), 'waiting')
+        listener.busy = True
+        self.assertEqual(self.control(listener), 'listening')
+
+    def test_a_port_overrides_the_report(self):
+        listener = Cerbo({}).listener()
+        listener.scan(set())
+        g = self.G()
+        g.status = 'monitor_only'
+        self.assertEqual(driver.control_status(g, listener), 'monitor_only')
+
+    def test_web_status_lists_each_port(self):
+        from support import load_config
+        listener = Cerbo({'ttyS6': BMV_BLOCK}).listener()
+        listener.scan(set())
+        cfg = load_config()
+        app = driver.WebApp(cfg, driver.Telemetry(5.0), None, driver.Guard(True), lambda: None)
+        app.listener = listener
+        g = app.status()['guard']
+        self.assertEqual(g['status'], 'not_mppt')
+        self.assertIn('not a solar charger', g['listen']['ports']['ttyS6']['text'])
 
 
 class ChooserListensTest(unittest.TestCase):

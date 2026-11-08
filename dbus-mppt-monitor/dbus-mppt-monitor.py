@@ -505,7 +505,7 @@ def choose_port(devices, serial_wanted, remembered, exists=os.path.exists):
     return None, 'no MPPT found yet on a VE.Direct port'
 
 
-def listen_for_mppt(path, seconds=LISTEN_SECONDS, open_port=None):
+def listen_for_mppt(path, seconds=LISTEN_SECONDS, open_port=None, stats=None):
     """Listen (read-only) on one port; the MPPT's decoded readings, or None if none were heard.
 
     Only blocks with a PV voltage count: solar chargers send VPV, battery monitors and inverters
@@ -513,17 +513,23 @@ def listen_for_mppt(path, seconds=LISTEN_SECONDS, open_port=None):
     to talk to a device to identify it and can't.
     """
     open_port = open_port or SerialPort
+    stats = {} if stats is None else stats
+    stats.update(bytes=0, blocks=0, bad_blocks=0, error=None)
     try:
         port = open_port(path)
     except OSError as e:
         log.debug('Cannot listen on %s: %s', path, e)
+        stats['error'] = str(e)
         return None
     parser = vt.TextParser()
     found = None
     end = time.monotonic() + seconds
     try:
         while time.monotonic() < end:
-            for block in parser.feed(port.read(0.3)):
+            data = port.read(0.3)
+            stats['bytes'] += len(data)
+            for block in parser.feed(data):
+                stats['blocks'] += 1
                 values = vt.decode(block)
                 if values.get('pv_voltage') is not None:
                     found = dict(found or {}, **values)
@@ -533,7 +539,22 @@ def listen_for_mppt(path, seconds=LISTEN_SECONDS, open_port=None):
         pass
     finally:
         port.close()
+        stats['bad_blocks'] = parser.bad_blocks
     return found
+
+
+# What the last listening round found on each port (shown on the web page, /api/status)
+LISTEN_RESULTS = {
+    'victron': 'Victron\'s driver found a device here: not touched',
+    'busy': 'busy: Venus OS didn\'t free it',
+    'skipped': 'busy, and take_over = no: not touched',
+    'silent': 'nothing heard',
+    'garbled': 'bytes heard, but no valid VE.Direct block',
+    'not_mppt': 'a VE.Direct device, but not a solar charger',
+    'other_mppt': 'an MPPT with another serial number',
+    'mppt': 'MPPT heard',
+    'error': 'could not open',
+}
 
 
 class Listener:
@@ -558,17 +579,40 @@ class Listener:
         self.sleep = sleep
         self.found = None          # (path, serial)
         self.busy = False
+        self.report = None         # {'ports': {name: {...}}, 'result': summary}
         self._lock = threading.Lock()
 
     def scan(self, identified_ttys):
-        """One listening round. Returns (path, serial) or None."""
+        """One listening round. Returns (path, serial) or None. Fills self.report."""
+        ports = {}
+        self.report = {'ports': ports, 'result': None, 'running': True}
+        found = self._scan(identified_ttys, ports)
+        tried = [r['result'] for r in ports.values() if r['result'] != 'victron']
+        if found:
+            summary = 'found'
+        elif not tried:
+            summary = 'no_ports'
+        elif any(r in ('garbled', 'not_mppt', 'other_mppt') for r in tried):
+            summary = 'garbled' if 'garbled' in tried else 'not_mppt'
+        elif all(r in ('busy', 'skipped', 'error') for r in tried):
+            summary = 'busy'
+        else:
+            summary = 'silent'
+        self.report = {'ports': ports, 'result': summary, 'running': False}
+        log.info('port = auto: listening round: %s (%s)', summary,
+                 ', '.join('%s %s' % (n, r['result']) for n, r in sorted(ports.items())) or 'no ports')
+        return found
+
+    def _scan(self, identified_ttys, ports):
         for path in self.ports_fn():
             name = tty_name(path)
             if name in identified_ttys:
+                ports[name] = {'result': 'victron'}
                 continue
             paused = False
             if self.holders(path):
                 if not self.take_over:
+                    ports[name] = {'result': 'skipped'}
                     continue
                 paused = self.stop(name)
                 for _ in range(10):
@@ -577,12 +621,29 @@ class Listener:
                         break
                 if self.holders(path):
                     log.info('port = auto: %s stays busy; not listening there', name)
+                    ports[name] = {'result': 'busy',
+                                   'holders': ['%s (pid %d)' % (n, p) for p, n in self.holders(path)]}
                     if paused:
                         self.start(name)
                     continue
-            values = self.listen(path)
+            stats = {}
+            try:
+                values = self.listen(path, stats=stats)
+            except TypeError:          # a listen function without stats (tests)
+                values = self.listen(path)
             serial = (values or {}).get('serial')
-            if values and (not self.serial_wanted or serial == self.serial_wanted):
+            if values:
+                result = 'mppt' if (not self.serial_wanted or serial == self.serial_wanted) else 'other_mppt'
+            elif stats.get('error'):
+                result = 'error'
+            elif stats.get('blocks'):
+                result = 'not_mppt'
+            elif stats.get('bytes'):
+                result = 'garbled'
+            else:
+                result = 'silent'
+            ports[name] = dict(stats, result=result, serial=serial)
+            if result == 'mppt':
                 log.info('port = auto: heard MPPT %s on %s (one-way cable or not identified '
                          'by Victron\'s driver)', serial or '?', name)
                 return path, serial
@@ -879,8 +940,22 @@ ERROR_CODES = sorted(vt.ERRORS)
 ERROR_LABELS = ['Error %d: %s' % (c, vt.ERRORS[c]) if c else 'None' for c in ERROR_CODES] + ['Other error']
 ERROR_OTHER = len(ERROR_CODES)
 
-GUARD_STATUSES = ('monitor_only', 'victron', 'waiting')
-GUARD_LABELS = ['Monitor only (DVCC can\'t reach it)', 'Victron driver active!', 'Waiting for the MPPT']
+GUARD_STATUSES = ('monitor_only', 'victron', 'waiting', 'listening', 'silent', 'garbled', 'not_mppt',
+                  'busy')
+GUARD_LABELS = ['Monitor only (DVCC can\'t reach it)', 'Victron driver active!', 'Waiting for the MPPT',
+                'Listening for the MPPT', 'Not heard: check cable', 'Garbled data: check cable',
+                'No MPPT on VE.Direct', 'VE.Direct ports busy']
+
+
+def control_status(guard, listener):
+    """Control row: the guard's status, or while there is no port, what the listener found."""
+    status = guard.status
+    if status != 'waiting' or listener is None:
+        return status
+    if listener.busy:
+        return 'listening'
+    result = (listener.report or {}).get('result')
+    return result if result in GUARD_STATUSES else 'waiting'
 
 TRACKER_LABELS = [vt.TRACKER_MODES[m] for m in sorted(vt.TRACKER_MODES)] + ['Unknown']
 
@@ -1133,6 +1208,7 @@ class WebApp:
         self.name = cfg['dbus']['custom_name']
         self.service_class = cfg['dbus']['service_class']
         self.password = cfg['web']['password']
+        self.listener = None
         with open(os.path.join(BASE_DIR, 'webui.html'), 'rb') as f:
             self.page = f.read()
 
@@ -1141,7 +1217,12 @@ class WebApp:
         v = snap['values']
         last = snap['last']
         guard = self.guard.describe()
-        guard['status'] = self.guard.status
+        guard['status'] = control_status(self.guard, self.listener)
+        report = getattr(self.listener, 'report', None)
+        guard['listen'] = None if report is None else {
+            'result': report['result'], 'running': report['running'],
+            'ports': {n: dict(r, text=LISTEN_RESULTS.get(r['result'], r['result']))
+                      for n, r in report['ports'].items()}}
         return {
             'name': self.name,
             'port': self.port_fn(),
@@ -1468,7 +1549,7 @@ def main():
         dbus_service = DbusService(cfg, UiSettings(os.path.join(BASE_DIR, ui_file)),
                                    'mppt_monitor_sim' if args.simulate else 'mppt_monitor')
 
-    reader = chooser = None
+    reader = chooser = listener = None
     if args.simulate:
         guard.path = 'simulated'
         start_thread('sim', sim_reader, SimulatedMppt(), telemetry)
@@ -1476,10 +1557,13 @@ def main():
     else:
         reader = Reader(guard, telemetry, serial_wanted)
         chooser = PortChooser(cfg, state_path, bus_factory or (lambda: None))
+        listener = chooser.listener
         start_thread('vedirect', reader.run)
         port_fn = lambda: guard.path
     if cfg['web'].getint('port'):
-        start_web(cfg, WebApp(cfg, telemetry, history, guard, port_fn))
+        web = WebApp(cfg, telemetry, history, guard, port_fn)
+        web.listener = listener
+        start_web(cfg, web)
 
     status = {'online': None, 'guard': None, 'serial_warned': None, 'next_lookup': 0.0}
 
@@ -1528,7 +1612,7 @@ def main():
             elif cfg['vedirect']['port'].strip().lower() == 'auto' and guard.path:
                 chooser.remember(guard.path, serial)
         if dbus_service is not None:
-            dbus_service.refresh(snap, guard.status, guard.path)
+            dbus_service.refresh(snap, control_status(guard, listener), guard.path)
 
     if dbus_service is None:
         while True:

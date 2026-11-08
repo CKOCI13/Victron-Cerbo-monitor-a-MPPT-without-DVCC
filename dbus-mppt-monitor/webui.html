@@ -186,6 +186,11 @@ const CONTROL = {
   victron: ['bad', 'Victron\'s driver is active on this port',
             'While it is, DVCC can control the MPPT. The monitor is asking Venus OS to stop it.'],
   waiting: ['wait', 'Waiting for the MPPT', 'No VE.Direct port found yet. See the log or run the scan.'],
+  listening: ['wait', 'Listening for the MPPT', 'Listening on the VE.Direct ports where Victron\'s driver found nothing.'],
+  silent: ['bad', 'MPPT not heard: check the cable', 'Nothing arrived on any free VE.Direct port. With a one-way cable, pin 3 (data out of the MPPT) and pin 1 (ground) must still connect. Tries again every 5 minutes.'],
+  garbled: ['bad', 'Garbled data: check the cable', 'Bytes arrive but don\'t decode. Usually a missing ground (pin 1) or a poor contact.'],
+  not_mppt: ['bad', 'No MPPT on VE.Direct', 'A VE.Direct device answers, but it isn\'t a solar charger (or has another serial number).'],
+  busy: ['bad', 'VE.Direct ports busy', 'Venus OS didn\'t free the ports to listen on.'],
 };
 
 function render(s) {
@@ -202,6 +207,13 @@ function render(s) {
   if (g.status === 'victron') {
     const who = g.holders.concat(g.victron_services);
     if (who.length) extra = ' (' + who.join(', ') + ')';
+  }
+  if (g.listen && g.status !== 'monitor_only' && g.status !== 'victron') {
+    const ports = Object.keys(g.listen.ports).sort();
+    if (ports.length) extra += ' Last check: ' + ports.map(n => {
+      const r = g.listen.ports[n];
+      return n + ' ' + r.text + (r.bytes ? ' (' + r.bytes + ' bytes)' : '');
+    }).join('; ') + '.';
   }
   $('control-text').textContent = c[2] + extra;
 
