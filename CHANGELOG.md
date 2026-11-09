@@ -14,6 +14,9 @@ Fixes `port = auto` with the **one-way cable**, found in the first real test (Sm
   MPPT*, *Not heard: check cable*, *Garbled data: check cable*, *No MPPT on VE.Direct* or *VE.Direct ports busy*.
   The web page lists the result for each port (bytes heard, busy, and so on), so a cable problem can be found
   from the tablet without SSH.
+- A **port check** card ("Solar MPPT port check") shows the same per-port result on the Cerbo itself, for when
+  the web page can't be reached: for ttyS5, ttyS6 and ttyS7, the result, the bytes heard, how many of them were
+  plain text (VE.Direct text is nearly all text; noise isn't) and how many blocks had a bad checksum.
 - With no data, the State row said **Fault**, which looked like an MPPT fault. It now says **No communication**.
 - `--scan` (Cerbo Setup option 2) explains a port that Victron's driver holds but hasn't identified, instead of
   just listing it as open.

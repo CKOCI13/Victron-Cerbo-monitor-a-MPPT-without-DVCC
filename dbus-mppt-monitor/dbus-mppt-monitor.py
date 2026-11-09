@@ -514,7 +514,7 @@ def listen_for_mppt(path, seconds=LISTEN_SECONDS, open_port=None, stats=None):
     """
     open_port = open_port or SerialPort
     stats = {} if stats is None else stats
-    stats.update(bytes=0, blocks=0, bad_blocks=0, error=None)
+    stats.update(bytes=0, text=0, blocks=0, bad_blocks=0, error=None)
     try:
         port = open_port(path)
     except OSError as e:
@@ -528,6 +528,7 @@ def listen_for_mppt(path, seconds=LISTEN_SECONDS, open_port=None, stats=None):
         while time.monotonic() < end:
             data = port.read(0.3)
             stats['bytes'] += len(data)
+            stats['text'] += sum(1 for b in data if 0x20 <= b <= 0x7E or b in (9, 10, 13))
             for block in parser.feed(data):
                 stats['blocks'] += 1
                 values = vt.decode(block)
@@ -991,6 +992,40 @@ INPUTS = (
     ('battery_current', 'Current', INPUT_VALUE, 'A', 1, None, 'bat'),
     ('battery_power', 'Power', INPUT_VALUE, 'W', 0, None, 'bat'),
 )
+# Port check card: what the last listening round heard on each built-in VE.Direct port, so it
+# can be read on the Cerbo itself (the same as the web page's "Last check" line).
+CARDS['diag'] = '%s port check'
+DIAG_PORTS = ('ttyS5', 'ttyS6', 'ttyS7')
+DIAG_RESULTS = ('not_checked', 'silent', 'garbled', 'mppt', 'not_mppt', 'other_mppt', 'busy',
+                'skipped', 'victron', 'error')
+DIAG_LABELS = ['Not checked yet', 'Nothing heard', 'Garbled', 'MPPT heard', 'Not an MPPT',
+               'Other MPPT', 'Busy', 'Busy (skipped)', 'Victron driver', 'Could not open']
+DIAG_INPUTS = tuple(row for tty in DIAG_PORTS for row in (
+    (tty + '_result', tty + ' result', INPUT_DISCRETE, None, None, DIAG_LABELS, 'diag'),
+    (tty + '_bytes', tty + ' bytes heard', INPUT_VALUE, 'B', 0, None, 'diag'),
+    (tty + '_text', tty + ' text bytes', INPUT_VALUE, '%', 0, None, 'diag'),
+    (tty + '_bad', tty + ' bad checksums', INPUT_VALUE, 'x', 0, None, 'diag'),
+))
+
+
+def diag_values(report):
+    """{channel: value} for the port check card from a Listener report (None = not checked)."""
+    ports = (report or {}).get('ports') or {}
+    out = {}
+    for tty in DIAG_PORTS:
+        r = ports.get(tty)
+        if not r:
+            out.update({tty + '_result': 0, tty + '_bytes': None, tty + '_text': None, tty + '_bad': None})
+            continue
+        res = r.get('result')
+        n = r.get('bytes')
+        out[tty + '_result'] = DIAG_RESULTS.index(res) if res in DIAG_RESULTS else 0
+        out[tty + '_bytes'] = n
+        out[tty + '_text'] = (round(100.0 * r.get('text', 0) / n) if n else None)
+        out[tty + '_bad'] = r.get('bad_blocks')
+    return out
+
+
 # Shown on the device page; start hidden in the switch pane to keep the cards short.
 HIDDEN_BY_DEFAULT = ('yield_yesterday', 'yield_total', 'tracker_mode')
 
@@ -1074,7 +1109,7 @@ class DbusService:
 
         self.switch_pane = d.getboolean('switch_pane')
         if self.switch_pane:
-            for spec in INPUTS:
+            for spec in INPUTS + DIAG_INPUTS:
                 self._add_input(d['custom_name'], *spec)
 
         if needs_register:
@@ -1117,7 +1152,7 @@ class DbusService:
             log.warning('Rejected D-Bus write %s = %r', path, value)
         return ok
 
-    def refresh(self, snap, guard_status, port):
+    def refresh(self, snap, guard_status, port, listen_report=None):
         s = self.svc
         v = snap['values'] or {}
         last = snap['last']
@@ -1155,6 +1190,8 @@ class DbusService:
 
         if self.switch_pane:
             self._refresh_switch_pane(snap, control)
+            for channel, value in diag_values(listen_report).items():
+                s['/GenericInput/%s/Value' % channel] = value
 
     def _refresh_switch_pane(self, snap, control):
         s = self.svc
@@ -1612,7 +1649,8 @@ def main():
             elif cfg['vedirect']['port'].strip().lower() == 'auto' and guard.path:
                 chooser.remember(guard.path, serial)
         if dbus_service is not None:
-            dbus_service.refresh(snap, control_status(guard, listener), guard.path)
+            dbus_service.refresh(snap, control_status(guard, listener), guard.path,
+                                 listener.report if listener is not None else None)
 
     if dbus_service is None:
         while True:

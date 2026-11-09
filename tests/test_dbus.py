@@ -105,7 +105,7 @@ class DbusTest(unittest.TestCase):
     def test_gui_v2_rules_for_every_item(self):
         # gui-v2 shows a GenericInput only if /Name isn't empty, /Settings/Type is valid and set
         # in /Settings/ValidTypes, and a value item has a /Settings/Unit.
-        for channel, name, typ, unit, decimals, labels, card in driver.INPUTS:
+        for channel, name, typ, unit, decimals, labels, card in driver.INPUTS + driver.DIAG_INPUTS:
             base = '/GenericInput/' + channel
             self.assertTrue(self.s[base + '/Name'])
             self.assertIn(self.s[base + '/Settings/Type'], (0, 1))
@@ -120,6 +120,24 @@ class DbusTest(unittest.TestCase):
                 self.assertLessEqual(len(group.encode()), 32)
             else:
                 self.assertIsNone(group)
+
+    def test_port_check_card(self):
+        g = lambda ch: self.s['/GenericInput/%s/Value' % ch]
+        self.refresh()
+        self.assertEqual(driver.DIAG_LABELS[g('ttyS5_result')], 'Not checked yet')
+        self.assertIsNone(g('ttyS5_bytes'))
+        report = {'ports': {'ttyS5': {'result': 'garbled', 'bytes': 700, 'text': 665, 'bad_blocks': 3},
+                            'ttyS6': {'result': 'silent', 'bytes': 0, 'text': 0, 'bad_blocks': 0},
+                            'ttyS7': {'result': 'victron'}}}
+        self.dbus.refresh(self.telemetry.snapshot(), 'garbled', None, report)
+        self.assertEqual(driver.DIAG_LABELS[g('ttyS5_result')], 'Garbled')
+        self.assertEqual(g('ttyS5_bytes'), 700)
+        self.assertEqual(g('ttyS5_text'), 95)
+        self.assertEqual(g('ttyS5_bad'), 3)
+        self.assertEqual(driver.DIAG_LABELS[g('ttyS6_result')], 'Nothing heard')
+        self.assertIsNone(g('ttyS6_text'))
+        self.assertEqual(driver.DIAG_LABELS[g('ttyS7_result')], 'Victron driver')
+        self.assertEqual(self.s['/GenericInput/ttyS5_result/Settings/Group'], 'Solar MPPT port check')
 
     def test_other_class(self):
         cfg = load_config()

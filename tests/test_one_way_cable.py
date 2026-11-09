@@ -143,6 +143,7 @@ class ReportTest(unittest.TestCase):
         listener.scan(set())
         self.assertEqual(listener.report['ports']['ttyS7']['result'], 'garbled')
         self.assertGreater(listener.report['ports']['ttyS7']['bytes'], 0)
+        self.assertLess(listener.report['ports']['ttyS7']['text'], listener.report['ports']['ttyS7']['bytes'])
         self.assertEqual(self.control(listener), 'garbled')
 
     def test_battery_monitor_only(self):
