@@ -207,8 +207,11 @@ A VE.Direct connector has 4 pins (Victron's *VE.Direct protocol* document):
 The safest way is a short 4-pin JST-PH extension lead between the VE.Direct cable and the MPPT, so the Victron
 cable stays intact. At the MPPT end, cut and insulate the wire on **pin 2 only**. Then:
 
-- In `config.ini`, set `port` to the port's name (for example `ttyS6`, as Option 2 shows it) instead of `auto`.
-  Victron's driver may not recognise a one-way MPPT, so `auto` may never find it.
+- Leave `port = auto`. Victron's driver can't identify an MPPT behind a one-way cable (it has to talk to a device
+  to identify it), so about 30 seconds after starting, the monitor listens (read-only) on each VE.Direct port where
+  Victron's driver found nothing, and takes the one where it hears the MPPT. It never touches a port where
+  Victron's driver found a device, hands the other ports straight back to Venus OS, tries again every 5 minutes
+  until it hears the MPPT, and remembers the port for next time. Setting `port` to a name like `ttyS6` still works.
 - Check with `Cerbo Setup.bat` option 3 that readings still arrive. If they stop, the wrong wire was cut: pin 3
   carries the readings. Cutting either data wire can't damage anything.
 
